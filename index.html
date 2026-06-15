@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BN SPARK | Cyberpunk Streaming Matrix</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mpegts.js@latest"></script>
+
+    <style>
+        /* Extreme Cyberpunk & Glassmorphism Tokens */
+        :root {
+            --bg-deep: #050505;
+            --glass-bg: rgba(10, 15, 25, 0.45);
+            --glass-border: rgba(0, 245, 255, 0.2);
+            --neon-cyan: #00e5ff;
+            --neon-pink: #ff0055;
+            --neon-purple: #b000ff;
+            --text-main: #e0eaff;
+            --text-muted: #829ab1;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Rajdhani', sans-serif;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-deep);
+            color: var(--text-main);
+            /* Cyberpunk Grid Background */
+            background-image: 
+                linear-gradient(rgba(0, 229, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 229, 255, 0.03) 1px, transparent 1px);
+            background-size: 30px 30px;
+            background-position: center center;
+            min-height: 100vh;
+            overflow-x: hidden;
+            padding-bottom: 60px;
+        }
+
+        /* Ambient Glow Behind Everything */
+        .ambient-light {
+            position: fixed;
+            top: 20%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60vw;
+            height: 60vh;
+            background: radial-gradient(circle, rgba(0, 229, 255, 0.08) 0%, rgba(255, 0, 85, 0.05) 50%, transparent 70%);
+            filter: blur(80px);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* Glassmorphism Utilities */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(24px) saturate(150%);
+            -webkit-backdrop-filter: blur(24px) saturate(150%);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+            border-radius: 16px;
+        }
+
+        .container {
+            max-width: 1500px;
+            margin: 0 auto;
+            padding: 0 30px;
+        }
+
+        /* Header / Navbar */
+        header {
+            padding: 20px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: linear-gradient(to bottom, rgba(5,5,5,0.9) 0%, transparent 100%);
+        }
+
+        .nav-inner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.2rem;
+            font-weight: 900;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 15px var(--neon-cyan);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .logo span { color: var(--neon-cyan); }
+
+        /* Main Theater Layout */
+        .theater-wrapper {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 30px;
+            margin-top: 20px;
+            margin-bottom: 50px;
+        }
+
+        /* Video Player Frame */
+        .player-frame {
+            position: relative;
+            border-radius: 16px;
+            overflow: hidden;
+            aspect-ratio: 16/9;
+            background: #000;
+            box-shadow: 0 0 40px rgba(0, 229, 255, 0.15);
+        }
+
+        .player-frame::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border: 2px solid transparent;
+            border-radius: 16px;
+            background: linear-gradient(45deg, var(--neon-cyan), var(--neon-pink)) border-box;
+            -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: destination-out;
+            mask-composite: exclude;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* Scanline Overlay on Video */
+        .scanlines {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.1));
+            background-size: 100% 4px;
+            z-index: 5;
+            pointer-events: none;
+            opacity: 0.4;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* HUD Console (Right Sidebar) */
+        .hud-console {
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .hud-console::after {
+            content: '';
+            position: absolute;
+            top: -10px; right: -10px;
+            width: 40px; height: 40px;
+            border-top: 3px solid var(--neon-cyan);
+            border-right: 3px solid var(--neon-cyan);
+            border-radius: 0 16px 0 0;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            background: rgba(0, 229, 255, 0.1);
+            border: 1px solid var(--neon-cyan);
+            color: var(--neon-cyan);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 700;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.2) inset;
+        }
+
+        .channel-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            line-height: 1.1;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            background: linear-gradient(to right, #fff, #a5b4fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .tech-specs {
+            margin-top: auto;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 20px;
+        }
+
+        .spec-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .spec-label { color: var(--text-muted); }
+        .spec-value { color: var(--neon-cyan); font-family: 'Orbitron', sans-serif; }
+
+        /* Cyber Filter Buttons */
+        .filter-bay {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+        }
+        .filter-bay::-webkit-scrollbar { display: none; }
+
+        .cyber-btn {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid var(--glass-border);
+            color: var(--text-muted);
+            padding: 10px 24px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .cyber-btn:hover, .cyber-btn.active {
+            background: rgba(0, 229, 255, 0.1);
+            border-color: var(--neon-cyan);
+            color: #fff;
+            box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* Matrix Channel Grid */
+        .channel-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 25px;
+        }
+
+        .channel-card {
+            position: relative;
+            padding: 25px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            background: linear-gradient(145deg, rgba(20,25,35,0.6), rgba(5,10,15,0.8));
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .channel-card:hover {
+            transform: translateY(-5px) scale(1.02);
+            border-color: var(--neon-cyan);
+            box-shadow: 0 10px 30px rgba(0, 229, 255, 0.15);
+        }
+
+        /* Glowing corner effect on hover */
+        .channel-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at 50% 0%, rgba(0, 229, 255, 0.2), transparent 60%);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            pointer-events: none;
+        }
+        .channel-card:hover::before { opacity: 1; }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .card-type {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.7rem;
+            color: var(--neon-pink);
+            letter-spacing: 1px;
+            background: rgba(255, 0, 85, 0.1);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .card-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 5px;
+        }
+
+        .card-desc {
+            font-size: 1rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        /* Dynamic Toast Notification */
+        #toast {
+            position: fixed;
+            bottom: -100px;
+            right: 30px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--neon-cyan);
+            border-left: 4px solid var(--neon-cyan);
+            color: #fff;
+            padding: 15px 25px;
+            border-radius: 8px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5), 0 0 20px rgba(0, 229, 255, 0.2);
+            transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 9999;
+        }
+        #toast.show { bottom: 30px; }
+
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .theater-wrapper { grid-template-columns: 1fr; }
+            .hud-console { margin-top: 20px; }
+        }
+        @media (max-width: 768px) {
+            .logo { font-size: 1.5rem; }
+            .channel-title { font-size: 2rem; }
+            .container { padding: 0 15px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ambient-light"></div>
+
+    <header>
+        <div class="container nav-inner">
+            <div class="logo">BN<span>SPARK</span></div>
+            <div class="status-badge" style="margin:0; box-shadow: 0 0 10px var(--neon-pink) inset; border-color: var(--neon-pink); color: var(--neon-pink);">
+                System Online
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        
+        <div class="theater-wrapper">
+            <div class="player-frame">
+                <div class="scanlines"></div>
+                <video id="cyberPlayer" controls autoplay playsinline></video>
+            </div>
+
+            <div class="hud-console glass-panel">
+                <div>
+                    <div id="hudCategory" class="status-badge">Awaiting Sync</div>
+                    <h1 id="hudTitle" class="channel-title">Select a Node to Initialize</h1>
+                    <p id="hudDesc" style="color: var(--text-muted); font-size: 1.1rem; line-height: 1.5;">
+                        Connect to the global matrix. Select a channel from the grid below to start packet decryption.
+                    </p>
+                </div>
+
+                <div class="tech-specs">
+                    <div class="spec-row">
+                        <span class="spec-label">Codec Engine:</span>
+                        <span id="hudCodec" class="spec-value">HLS / MPEGTS</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Signal State:</span>
+                        <span class="spec-value" style="color: var(--neon-pink);">ENCRYPTED LIVE</span>
+                    </div>
+                    <button class="cyber-btn" style="width: 100%; margin-top: 15px; text-align: center; border-color: var(--neon-purple); color: var(--neon-purple);" onclick="copyStreamLink()">
+                        [ COPY STREAM LINK ]
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-bay">
+            <button class="cyber-btn active" onclick="filterChannels('all', this)">All Nodes</button>
+            <button class="cyber-btn" onclick="filterChannels('Sports', this)">Sports Matrix</button>
+            <button class="cyber-btn" onclick="filterChannels('News', this)">Global News</button>
+            <button class="cyber-btn" onclick="filterChannels('Premium', this)">VIP 2K Feed</button>
+        </div>
+
+        <div class="channel-grid" id="matrixGrid"></div>
+
+    </div>
+
+    <div id="toast">Connecting...</div>
+
+    <script>
+        // Database including specific .m3u8 and .ts links
+        const streamDatabase = [
+            { id: "NODE-1", title: "TSports Live", cat: "Sports", desc: "Local Sports Broadcast", engine: "HLS (.m3u8)", url: "http://198.195.239.50:8095/tsports/tracks-v1a1/mono.m3u8" },
+            { id: "NODE-2", title: "Somoy TV", cat: "News", desc: "24/7 Global News Feed", engine: "HLS (.m3u8)", url: "https://live.thebosstv.com:30443/dwlive/Somoy-TV/playlist.m3u8" },
+            { id: "NODE-3", title: "Bein Sports 1", cat: "Sports", desc: "Direct MPEG-TS Feed", engine: "MPEGTS (.ts)", url: "http://starhub.pro/live/farhat-3379/67897-913379/744523.ts" },
+            { id: "NODE-4", title: "Bein Sports 2", cat: "Sports", desc: "Direct MPEG-TS Feed", engine: "MPEGTS (.ts)", url: "http://starhub.pro/live/farhat-3379/67897-913379/744524.ts" },
+            { id: "NODE-5", title: "Bein Sports 5", cat: "Sports", desc: "Direct MPEG-TS Feed", engine: "MPEGTS (.ts)", url: "http://starhub.pro/live/farhat-3379/67897-913379/744527.ts" },
+            { id: "NODE-6", title: "VIP 2K Channel", cat: "Premium", desc: "High Bitrate Encrypted Core", engine: "MPEGTS (.ts)", url: "http://starhub.pro/live/farhat-3379/67897-913379/745269.ts" },
+            { id: "NODE-7", title: "Tapmad Core", cat: "Sports", desc: "Akamai Premium Server", engine: "HLS (.m3u8)", url: "https://premierleagpl23.akamaized.net/hls/live/2107108/tapmad-P2s6L_FiN@L-UrU/master.m3u8" }
+        ];
+
+        let currentHls = null;
+        let currentMpegts = null;
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.innerText = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // Dual Engine Player (Crucial for handling both .m3u8 and your .ts links)
+        function injectStream(url, type) {
+            const videoElement = document.getElementById('cyberPlayer');
+            
+            // Destroy existing instances
+            if (currentHls) { currentHls.destroy(); currentHls = null; }
+            if (currentMpegts) { currentMpegts.destroy(); currentMpegts = null; }
+
+            // HLS Engine for .m3u8
+            if (url.includes('.m3u8')) {
+                if (Hls.isSupported()) {
+                    currentHls = new Hls({ maxBufferLength: 30, liveSyncDurationCount: 3 });
+                    currentHls.loadSource(url);
+                    currentHls.attachMedia(videoElement);
+                    currentHls.on(Hls.Events.MANIFEST_PARSED, () => videoElement.play().catch(e=>console.log(e)));
+                } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+                    videoElement.src = url;
+                    videoElement.play();
+                }
+            } 
+            // MPEGTS Engine for .ts (Bein Sports & 2K Links)
+            else if (url.includes('.ts')) {
+                if (mpegts.getFeatureList().mseLivePlayback) {
+                    currentMpegts = mpegts.createPlayer({
+                        type: 'mse', // or 'mpegts' depending on specific stream formatting
+                        isLive: true,
+                        url: url
+                    });
+                    currentMpegts.attachMediaElement(videoElement);
+                    currentMpegts.load();
+                    currentMpegts.play().catch(e=>console.log(e));
+                } else {
+                    showToast("Error: Browser does not support TS decoding.");
+                }
+            }
+        }
+
+        function activateNode(node) {
+            showToast(`Decrypting signal: ${node.title}...`);
+            
+            // Update HUD
+            document.getElementById('hudCategory').innerText = node.cat;
+            document.getElementById('hudTitle').innerText = node.title;
+            document.getElementById('hudDesc').innerText = node.desc;
+            document.getElementById('hudCodec').innerText = node.engine;
+
+            // Colors based on category
+            const badge = document.getElementById('hudCategory');
+            badge.style.color = node.cat === 'Premium' ? 'var(--neon-purple)' : 'var(--neon-cyan)';
+            badge.style.borderColor = node.cat === 'Premium' ? 'var(--neon-purple)' : 'var(--neon-cyan)';
+
+            injectStream(node.url, node.engine);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function renderGrid(filter = 'all') {
+            const grid = document.getElementById('matrixGrid');
+            grid.innerHTML = '';
+
+            const data = filter === 'all' ? streamDatabase : streamDatabase.filter(n => n.cat === filter);
+
+            data.forEach(node => {
+                const card = document.createElement('div');
+                card.className = 'channel-card';
+                card.onclick = () => activateNode(node);
+                card.innerHTML = `
+                    <div class="card-header">
+                        <span class="card-type">${node.cat}</span>
+                        <span style="color: var(--neon-cyan); font-size: 1.2rem;">⚡</span>
+                    </div>
+                    <div class="card-title">${node.title}</div>
+                    <div class="card-desc">${node.desc}</div>
+                    <div style="margin-top: 15px; font-family: 'Orbitron', sans-serif; font-size: 0.8rem; color: var(--text-muted);">
+                        [ ENGINE: ${node.engine} ]
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        window.filterChannels = function(category, btnElement) {
+            document.querySelectorAll('.filter-bay .cyber-btn').forEach(btn => btn.classList.remove('active'));
+            btnElement.classList.add('active');
+            renderGrid(category);
+        };
+
+        window.copyStreamLink = function() {
+            navigator.clipboard.writeText(window.location.href);
+            showToast("Network Link Copied to Clipboard!");
+        };
+
+        // Initialize First Node
+        window.addEventListener('DOMContentLoaded', () => {
+            renderGrid();
+            // Automatically play the first node
+            activateNode(streamDatabase[0]);
+        });
+    </script>
+</body>
+</html>
